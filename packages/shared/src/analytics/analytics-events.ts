@@ -1,8 +1,3 @@
-export interface CommonProperties {
-  readonly timestamp: string;
-  readonly projectId: string;
-}
-
 export interface EventMap {
   // Plan
   "plan:draft_created": { readonly draft_id: string };
