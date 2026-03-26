@@ -3,7 +3,7 @@ import * as Atom from "effect/unstable/reactivity/Atom";
 import { ExecutedTestPlan, Executor, Git, Reporter, type ExecuteOptions } from "@expect/supervisor";
 import { Analytics } from "@expect/shared/observability";
 import type { AgentBackend } from "@expect/agent";
-import type { ExecutionEvent, TestReport } from "@expect/shared/models";
+import type { ExecutionEvent } from "@expect/shared/models";
 import { cliAtomRuntime } from "./runtime";
 import { stripUndefinedRequirement } from "../utils/strip-undefined-requirement";
 import { NodeServices } from "@effect/platform-node";
@@ -60,7 +60,7 @@ interface ExecuteInput {
   readonly onReplayUrl?: (url: string) => void;
 }
 
-export interface ExecutionResult {
+interface ExecutionResult {
   readonly executedPlan: ExecutedTestPlan;
   readonly report: TestReport;
   readonly replayUrl?: string;
@@ -201,4 +201,3 @@ export const executeFn = cliAtomRuntime.fn<ExecuteInput>()((input, ctx) =>
     Effect.provide(NodeServices.layer),
   ),
 );
-

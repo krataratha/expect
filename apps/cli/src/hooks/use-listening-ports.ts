@@ -7,7 +7,7 @@ import {
   EPHEMERAL_PORT_START,
 } from "../constants";
 
-export interface ListeningPort {
+interface ListeningPort {
   readonly port: number;
   readonly processName: string;
   readonly cwd: string;
