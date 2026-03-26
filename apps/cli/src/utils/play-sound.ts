@@ -26,6 +26,3 @@ const notify = (options: NotifyOptions) =>
       resolve(),
     );
   });
-
-const playSoundAndNotify = (options: NotifyOptions) =>
-  Promise.all([playSound(), notify(options)]).then(() => undefined);

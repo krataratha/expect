@@ -22,7 +22,7 @@ interface AuditPackageEntry {
   scripts: string[];
 }
 
-export interface AuditCallbacks {
+interface AuditCallbacks {
   onPackageStart: (packageName: string, scripts: string[]) => void;
   onScriptDone: (packageName: string, result: ScriptResult) => void;
 }

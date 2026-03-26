@@ -15,7 +15,5 @@ export {
   TestPlanDraft,
   TestPlanStep,
   TestReport,
-  type SavedFlow,
-  type SavedFlowStep,
   type UpdateContent,
 } from "@expect/shared/models";

@@ -22,7 +22,7 @@ const GLOBAL_INSTALL_COMMANDS: Record<PackageManager, string> = {
 
 const SKILL_COMMAND = "npx skills add https://github.com/millionco/expect --skill expect";
 
-export const detectPackageManager = (): PackageManager => {
+const detectPackageManager = (): PackageManager => {
   if (process.env.VITE_PLUS_CLI_BIN) return "vp";
 
   const userAgent = process.env.npm_config_user_agent;
