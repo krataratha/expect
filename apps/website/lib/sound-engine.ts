@@ -25,20 +25,17 @@ export async function decodeAudioData(dataUri: string): Promise<AudioBuffer> {
   return audioBuffer;
 }
 
-export interface PlaySoundOptions {
+interface PlaySoundOptions {
   volume?: number;
   playbackRate?: number;
   onEnd?: () => void;
 }
 
-export interface SoundPlayback {
+interface SoundPlayback {
   stop: () => void;
 }
 
-export async function playSound(
-  dataUri: string,
-  options: PlaySoundOptions = {},
-): Promise<SoundPlayback> {
+async function playSound(dataUri: string, options: PlaySoundOptions = {}): Promise<SoundPlayback> {
   const { volume = 1, playbackRate = 1, onEnd } = options;
   const ctx = getAudioContext();
   if (ctx.state === "suspended") {
