@@ -3,7 +3,6 @@ import {
   BACKGROUND_COLOR,
   GREEN_COLOR,
   MUTED_COLOR,
-  OVERLAY_GRADIENT_HEIGHT_PX,
   RED_COLOR,
   TEXT_COLOR,
 } from "../constants";
