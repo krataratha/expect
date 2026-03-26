@@ -82,6 +82,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
+    "@babel/plugin-syntax-typescript": "^7.28.6",
     "@expect/agent": "workspace:*",
     "@expect/shared": "workspace:*",
     "@expect/supervisor": "workspace:*",

@@ -7,8 +7,8 @@ import {
   RED_COLOR,
   TEXT_COLOR,
 } from "../constants";
-import { fontFamily } from "../utils/font";
 import { getBottomOverlayGradient } from "../utils/get-bottom-overlay-gradient";
+import { fontFamily } from "../utils/font";
 
 interface ScannedFile {
   path: string;
@@ -107,7 +107,7 @@ const OVERLAY_APPEAR_FRAME = 40;
 const OVERLAY_FADE_FRAMES = 12;
 const FILL_START_FRAME = 48;
 const FILL_DURATION_FRAMES = 20;
-const SUBTITLE_HEIGHT_PX = 420;
+const SUBTITLE_HEIGHT_PX = OVERLAY_GRADIENT_HEIGHT_PX;
 const SUBTITLE_FONT_SIZE_PX = 88;
 
 export const CoverageBar = () => {
@@ -200,7 +200,7 @@ export const CoverageBar = () => {
         style={{
           position: "absolute",
           inset: 0,
-          backgroundColor: `rgba(10, 10, 10, ${subtitleOpacity * 0.7})`,
+          background: getBottomOverlayGradient(subtitleOpacity),
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

@@ -6,12 +6,13 @@ import {
   COMMAND,
   SCENE_COVERAGE_BAR_DURATION_FRAMES,
   SCENE_TYPING_DURATION_FRAMES,
+  SPLIT_SCREEN_DURATION_FRAMES,
   TRANSITION_DURATION_FRAMES,
   TYPING_INITIAL_DELAY_FRAMES,
   VIDEO_FPS,
 } from "../constants";
 import { CoverageBar } from "../scenes/coverage-bar";
-import { SplitScreen, SPLIT_SCREEN_DURATION_FRAMES } from "../scenes/split-screen";
+import { SplitScreen } from "../scenes/split-screen";
 import { TerminalTyping } from "../scenes/terminal-typing";
 
 const MUSIC_START_SECONDS = 27;

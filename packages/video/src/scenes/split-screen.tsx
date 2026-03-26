@@ -3,8 +3,6 @@ import {
   CHECK_ICON_COLOR,
   COMMAND,
   ERROR_ICON_COLOR,
-  SPINNER_CHARS,
-  SPINNER_SPEED_FRAMES,
   VIDEO_HEIGHT_PX,
   VIDEO_WIDTH_PX,
 } from "../constants";
@@ -14,7 +12,7 @@ import { BrowserCell, CELL_HEIGHT_PX, CELL_WIDTH_PX, type PageVariant } from "./
 const FRAMES_PER_CASE = 75;
 const FINALE_FRAMES = 120;
 const CASE_COUNT = 3;
-export const SPLIT_SCREEN_DURATION_FRAMES = FRAMES_PER_CASE * CASE_COUNT + FINALE_FRAMES;
+const SPLIT_SCREEN_DURATION_FRAMES = FRAMES_PER_CASE * CASE_COUNT + FINALE_FRAMES;
 
 interface TestCase {
   category: string;
@@ -69,6 +67,8 @@ const FINALE_COVERAGE_BAR_FONT_SIZE_PX = 56;
 const FINALE_FILLED_CHAR = "\u2588";
 const FINALE_EMPTY_CHAR = "\u2591";
 const FINALE_BAR_SEGMENTS = 10;
+const SPINNER_CHARS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const SPINNER_SPEED_FRAMES = 3;
 
 const AsciiSpinner = ({ size, frame }: { size: number; frame: number }) => {
   const charIndex = Math.floor(frame / SPINNER_SPEED_FRAMES) % SPINNER_CHARS.length;
