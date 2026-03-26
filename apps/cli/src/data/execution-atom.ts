@@ -60,7 +60,7 @@ interface ExecuteInput {
   readonly onReplayUrl?: (url: string) => void;
 }
 
-export interface ExecutionResult {
+interface ExecutionResult {
   readonly executedPlan: ExecutedTestPlan;
   readonly report: TestReport;
   readonly replayUrl?: string;
@@ -200,4 +200,3 @@ export const executeFn = cliAtomRuntime.fn<ExecuteInput>()((input, ctx) =>
     Effect.provide(NodeServices.layer),
   ),
 );
-
