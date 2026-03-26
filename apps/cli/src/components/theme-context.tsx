@@ -35,7 +35,7 @@ export const theme = {
   errorBg: "#330b0b",
 };
 
-export const COLORS: Colors = {
+const colors: Colors = {
   TEXT: theme.text,
   DIM: theme.textMuted,
   GREEN: theme.success,
@@ -52,4 +52,4 @@ export const COLORS: Colors = {
   ERROR_BG: theme.errorBg,
 };
 
-export const useColors = (): Colors => COLORS;
+export const useColors = (): Colors => colors;

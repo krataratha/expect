@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { proxy } from "hono/proxy";
 import { serve } from "@hono/node-server";
 
-export class ReplayProxyStartError extends Schema.ErrorClass<ReplayProxyStartError>(
+class ReplayProxyStartError extends Schema.ErrorClass<ReplayProxyStartError>(
   "ReplayProxyStartError",
 )({
   _tag: Schema.tag("ReplayProxyStartError"),
@@ -20,7 +20,7 @@ interface StartReplayProxyOptions {
   readonly liveViewUrl: string;
 }
 
-export interface ReplayProxyHandle {
+interface ReplayProxyHandle {
   readonly url: string;
   readonly close: Effect.Effect<void>;
 }
@@ -164,13 +164,23 @@ export const startReplayProxy = Effect.fn("startReplayProxy")(function* (
         },
       });
     } catch (error) {
-      console.error(`[replay-proxy] Failed to proxy ${requestPath} to ${upstreamUrl}:`, error);
+      void Effect.runFork(
+        Effect.logWarning("Replay proxy request failed", {
+          requestPath,
+          upstreamUrl: upstreamUrl.toString(),
+          cause: String(error),
+        }),
+      );
       return context.text(`Bad Gateway: could not reach ${replayHostParsed.host}`, 502);
     }
   });
 
   app.onError((error, context) => {
-    console.error("[replay-proxy] Unhandled error:", error);
+    void Effect.runFork(
+      Effect.logError("Replay proxy unhandled error", {
+        cause: String(error),
+      }),
+    );
     return context.text("Internal Server Error", 500);
   });
 

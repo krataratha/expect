@@ -23,7 +23,7 @@ export {
   UnknownError,
 } from "./errors";
 
-export { BROWSER_CONFIGS, configByKey } from "./browser-config";
+export { BROWSER_CONFIGS, configByKey, configByDisplayName } from "./browser-config";
 
 export {
   BrowserKey,
