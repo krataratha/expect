@@ -7,10 +7,6 @@ export const TEXT_COLOR = "#d4d4d8";
 export const MUTED_COLOR = "#737373";
 export const RED_COLOR = "#f87171";
 export const GREEN_COLOR = "#4ade80";
-export const OVERLAY_GRADIENT_RGB = "10, 10, 10";
-export const OVERLAY_GRADIENT_BOTTOM_ALPHA = 0.96;
-export const OVERLAY_GRADIENT_MIDDLE_ALPHA = 0.55;
-export const OVERLAY_GRADIENT_MIDDLE_STOP_PERCENT = 50;
 
 export const COMMAND = "npx expect-cli init";
 
