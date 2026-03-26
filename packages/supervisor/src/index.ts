@@ -25,7 +25,7 @@ export {
   type UpdateContent,
 } from "./git/index";
 export { FlowStorage } from "./flow-storage";
-export type { SavedFlowFileData, SavedFlowEnvironment } from "./types";
+export type { SavedFlowFileData } from "./types";
 export { checkoutBranch, getLocalBranches } from "./git";
 export { Github, GitHubCommandError } from "./github";
 export { promptHistoryStorage } from "./prompt-history";

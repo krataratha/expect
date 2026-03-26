@@ -4,7 +4,7 @@ import {
   formatSavedFlowFrontmatter,
   parseSavedFlowFile,
 } from "../src/saved-flow-file";
-import type { SavedFlowFileData } from "../src/types";
+import type { SavedFlowFileData } from "@expect/supervisor";
 
 const savedFlowFileData: SavedFlowFileData = {
   formatVersion: 3,
