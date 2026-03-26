@@ -1,9 +1,40 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getAudioContext, decodeAudioData } from "@/lib/sound-engine";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import type { SoundAsset, UseSoundOptions, UseSoundReturn } from "@/lib/sound-types";
+
+let audioContext: AudioContext | undefined;
+const decodedBufferCache = new Map<string, AudioBuffer>();
+
+const getAudioContext = () => {
+  if (audioContext) {
+    return audioContext;
+  }
+
+  audioContext = new AudioContext();
+  return audioContext;
+};
+
+const decodeAudioData = async (dataUri: string) => {
+  const cached = decodedBufferCache.get(dataUri);
+  if (cached) {
+    return cached;
+  }
+
+  const context = getAudioContext();
+  const base64 = dataUri.split(",")[1] ?? "";
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+
+  for (let index = 0; index < binaryString.length; index += 1) {
+    bytes[index] = binaryString.charCodeAt(index);
+  }
+
+  const decodedBuffer = await context.decodeAudioData(bytes.buffer.slice(0));
+  decodedBufferCache.set(dataUri, decodedBuffer);
+  return decodedBuffer;
+};
 
 export function useSound(sound: SoundAsset, options: UseSoundOptions = {}): UseSoundReturn {
   const {
@@ -76,6 +107,7 @@ export function useSound(sound: SoundAsset, options: UseSoundOptions = {}): UseS
         source.onended = () => {
           setIsPlaying(false);
           onEnd?.();
+          sourceRef.current = null;
         };
 
         source.start(0);

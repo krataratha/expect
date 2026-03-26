@@ -19,13 +19,3 @@ export const playSound = () =>
   new Promise<void>((resolve) => {
     exec(playSoundCommand(), () => resolve());
   });
-
-export const notify = (options: NotifyOptions) =>
-  new Promise<void>((resolve) => {
-    notifier.notify({ title: options.title, message: options.message, sound: false }, () =>
-      resolve(),
-    );
-  });
-
-export const playSoundAndNotify = (options: NotifyOptions) =>
-  Promise.all([playSound(), notify(options)]).then(() => undefined);
