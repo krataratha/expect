@@ -31,14 +31,14 @@ export interface PlaySoundOptions {
   onEnd?: () => void;
 }
 
-export interface SoundPlayback {
+interface SoundPlayback {
   stop: () => void;
 }
 
-export async function playSound(
+const playSound = async (
   dataUri: string,
   options: PlaySoundOptions = {},
-): Promise<SoundPlayback> {
+): Promise<SoundPlayback> => {
   const { volume = 1, playbackRate = 1, onEnd } = options;
   const ctx = getAudioContext();
   if (ctx.state === "suspended") {
@@ -71,4 +71,4 @@ export async function playSound(
       }
     },
   };
-}
+};
