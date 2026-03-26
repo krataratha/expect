@@ -16,8 +16,6 @@ export {
   GitError,
   GitRepoRoot,
   GitState,
-  type SavedFlow,
-  type SavedFlowStep,
   TestPlan,
   TestPlanDraft,
   TestPlanStep,

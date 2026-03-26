@@ -37,10 +37,6 @@ export interface EventMap {
   "agent:session_created": { readonly session_id: string };
   "agent:tool_called": { readonly tool_name: string };
 
-  // Errors
-  "error:unexpected": { readonly error_tag: string; readonly error_message: string };
-  "error:expected": { readonly error_tag: string; readonly error_message: string };
-
   // Session
   "session:started": {
     readonly mode: "interactive" | "headless";
