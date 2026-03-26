@@ -6,6 +6,15 @@ import { Hono } from "hono";
 import { proxy } from "hono/proxy";
 import { serve } from "@hono/node-server";
 
+class ReplayProxyStartError extends Schema.ErrorClass<ReplayProxyStartError>(
+  "ReplayProxyStartError",
+)({
+  _tag: Schema.tag("ReplayProxyStartError"),
+  cause: Schema.String,
+}) {
+  message = `Failed to start replay proxy: ${this.cause}`;
+}
+
 interface StartReplayProxyOptions {
   readonly replayHost: string;
   readonly liveViewUrl: string;
@@ -167,7 +176,7 @@ export const startReplayProxy = Effect.fn("startReplayProxy")(function* (
 
   const serverHandle = yield* Effect.try({
     try: () => serve({ fetch: app.fetch, port: 0 }),
-    catch: (cause) => new Error(`Failed to start replay proxy: ${String(cause)}`),
+    catch: (cause) => new ReplayProxyStartError({ cause: String(cause) }),
   });
 
   serverHandle.on("upgrade", (request, socket, head) => {
