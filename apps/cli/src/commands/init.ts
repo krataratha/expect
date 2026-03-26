@@ -28,8 +28,6 @@ const SKILL_COMMANDS: Record<PackageManager, string> = {
   vp: "npx -y skills add https://github.com/millionco/expect --skill expect",
 };
 
-export { detectAvailableAgents };
-
 export const detectPackageManager = (): PackageManager => {
   if (process.env.VITE_PLUS_CLI_BIN) return "vp";
 
