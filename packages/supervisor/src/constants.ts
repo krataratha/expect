@@ -31,4 +31,3 @@ export const SKIP_DIRECTORIES = new Set([
 
 export const TEST_FILE_CONTENT_SIZE_LIMIT_BYTES = 256 * 1024;
 export const TEST_FILE_SCAN_LIMIT = 200;
-export const TEST_COVERAGE_TIMEOUT_MS = 15_000;

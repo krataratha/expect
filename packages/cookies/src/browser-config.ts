@@ -466,13 +466,11 @@ export const BROWSER_CONFIGS: readonly BrowserConfig[] = [
 
 const bundleIdMap = new Map<string, BrowserConfig>();
 const desktopFileMap = new Map<string, BrowserConfig>();
-const displayNameMap = new Map<string, BrowserConfig>();
 const keyMap = new Map<BrowserKey, BrowserConfig>();
 
 for (const config of BROWSER_CONFIGS) {
   keyMap.set(config.key, config);
   bundleIdMap.set(config.bundleId.toLowerCase(), config);
-  displayNameMap.set(config.displayName, config);
   if ("desktopFiles" in config) {
     for (const desktopFile of config.desktopFiles) {
       desktopFileMap.set(desktopFile, config);
@@ -490,9 +488,6 @@ export const configByBundleId = (identifier: string): BrowserConfig | undefined 
 
 export const configByDesktopFile = (name: string): BrowserConfig | undefined =>
   desktopFileMap.get(name.replace(/\.desktop$/, ""));
-
-export const configByDisplayName = (name: string): BrowserConfig | undefined =>
-  displayNameMap.get(name);
 
 export const chromiumConfig = (key: ChromiumBrowserKey): ChromiumConfig =>
   CHROMIUM_CONFIGS.find((config) => config.key === key)!;
