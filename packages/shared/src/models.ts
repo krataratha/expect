@@ -927,7 +927,6 @@ export class TestReport extends ExecutedTestPlan.extend<TestReport>("@supervisor
   pullRequest: Schema.Option(Schema.suspend(() => PullRequest)),
   testCoverageReport: Schema.Option(TestCoverageReport),
 }) {
-  /** @todo(rasmus): UNUSED */
   get stepStatuses(): ReadonlyMap<
     StepId,
     { status: "passed" | "failed" | "not-run"; summary: string }
