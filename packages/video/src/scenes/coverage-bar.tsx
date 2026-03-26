@@ -1,14 +1,6 @@
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame } from "remotion";
-import {
-  BACKGROUND_COLOR,
-  GREEN_COLOR,
-  MUTED_COLOR,
-  OVERLAY_GRADIENT_HEIGHT_PX,
-  RED_COLOR,
-  TEXT_COLOR,
-} from "../constants";
+import { BACKGROUND_COLOR, GREEN_COLOR, MUTED_COLOR, RED_COLOR, TEXT_COLOR } from "../constants";
 import { fontFamily } from "../utils/font";
-import { getBottomOverlayGradient } from "../utils/get-bottom-overlay-gradient";
 
 interface ScannedFile {
   path: string;
