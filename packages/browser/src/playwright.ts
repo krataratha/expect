@@ -1,15 +1,25 @@
 import { Browsers, Cookies, layerLive } from "@expect/cookies";
-import type { Browser as BrowserProfile, Cookie } from "@expect/cookies";
+import type { Browser as BrowserProfile, Cookie, ExtractionError } from "@expect/cookies";
 import { chromium } from "playwright";
-import type { Browser as PlaywrightBrowser, BrowserContext, Locator, Page } from "playwright";
+import type {
+  Browser as PlaywrightBrowser,
+  BrowserContext,
+  ConsoleMessage,
+  Locator,
+  Page,
+  Request,
+} from "playwright";
 import {
   Array as Arr,
   Effect,
   FiberHandle,
   Layer,
   Option,
+  PlatformError,
   Queue,
+  Result,
   Schedule,
+  Scope,
   ServiceMap,
   Stream,
 } from "effect";
@@ -59,27 +69,22 @@ export interface OpenOptions {
   readonly executablePath?: string;
 }
 
-// Playwright API helpers — wraps promises with BrowserLaunchError
-const withBrowser = <A>(
-  fn: (browser: PlaywrightBrowser) => Promise<A>,
-  browser: PlaywrightBrowser,
-) =>
-  Effect.tryPromise({
-    try: () => fn(browser),
-    catch: (cause) => new BrowserLaunchError({ cause }),
-  });
+export class PlaywrightSession extends ServiceMap.Service<
+  PlaywrightSession,
+  {
+    readonly browser: PlaywrightBrowser;
+    readonly context: BrowserContext;
+    readonly page: Page;
+  }
+>()("@browser/PlaywrightSession") {}
 
-const withContext = <A>(fn: (context: BrowserContext) => Promise<A>, context: BrowserContext) =>
-  Effect.tryPromise({
-    try: () => fn(context),
-    catch: (cause) => new BrowserLaunchError({ cause }),
-  });
-
-const withPage = <A>(fn: (page: Page) => Promise<A>, page: Page) =>
-  Effect.tryPromise({
-    try: () => fn(page),
-    catch: (cause) => new BrowserLaunchError({ cause }),
-  });
+const withSession = <A>(fn: (session: PlaywrightSession["Service"]) => Promise<A>) =>
+  PlaywrightSession.use((session) =>
+    Effect.tryPromise({
+      try: () => fn(session),
+      catch: (cause) => new BrowserLaunchError({ cause }),
+    }),
+  );
 
 const shouldAssignRef = (role: string, name: string, interactive?: boolean): boolean => {
   if (INTERACTIVE_ROLES.has(role)) return true;
@@ -135,200 +140,190 @@ const appendCursorInteractiveElements = Effect.fn("Playwright.appendCursorIntera
 const injectOverlayLabels = (page: Page, labels: Array<{ label: number; x: number; y: number }>) =>
   evaluateRuntime(page, "injectOverlayLabels", OVERLAY_CONTAINER_ID, labels);
 
+export interface CreateSessionOptions {
+  headless: boolean;
+  /** @note(rasmus): optional profile to use */
+  browserProfile: Option.Option<BrowserProfile>;
+}
+
 export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playwright", {
   make: Effect.gen(function* () {
     const artifacts = yield* Artifacts;
     const cookies = yield* Cookies;
     const browsers = yield* Browsers;
 
-    let session: { browser: PlaywrightBrowser; context: BrowserContext; page: Page } | undefined;
+    let session: PlaywrightSession["Service"] | undefined;
 
     const handle = yield* FiberHandle.make();
 
-    const resolveDefaultProfile = Effect.fn("Playwright.resolveDefaultProfile")(function* () {
-      return yield* browsers.defaultBrowser().pipe(
-        Effect.map(Option.getOrUndefined),
-        Effect.catchTag("ListBrowsersError", () => Effect.succeed(undefined)),
-      );
-    });
-
-    const extractCookies = Effect.fn("Playwright.extractCookies")(function* (
-      preferredProfile: BrowserProfile | undefined,
-    ) {
-      if (!preferredProfile) return [];
-
-      const allProfiles = yield* browsers.list.pipe(
-        Effect.catchTag("ListBrowsersError", () => Effect.succeed<BrowserProfile[]>([])),
-      );
-
-      const profilesToExtract = [
-        preferredProfile,
-        ...allProfiles.filter((profile) => isSiblingProfile(profile, preferredProfile)),
-      ];
-
-      const extractOne = (profile: BrowserProfile) =>
+    const withCurrentSession =
+      ({ headless, browserProfile }: CreateSessionOptions) =>
+      <A, E, R extends PlaywrightSession | Scope.Scope>(
+        effect: Effect.Effect<A, E, R>,
+      ): Effect.Effect<
+        A,
+        E | BrowserLaunchError | ExtractionError | PlatformError.PlatformError,
+        Exclude<R, PlaywrightSession> | Scope.Scope
+      > =>
         Effect.gen(function* () {
-          return yield* cookies.extract(profile);
-        }).pipe(
-          Effect.catchTag("ExtractionError", () => Effect.succeed<Cookie[]>([])),
-          Effect.catchTag("PlatformError", Effect.die),
-        );
+          if (session !== undefined) {
+            return yield* effect.pipe(Effect.provideService(PlaywrightSession, session));
+          }
 
-      const results = yield* Effect.forEach(profilesToExtract, extractOne, {
-        concurrency: "unbounded",
-      });
+          const browser = yield* Effect.acquireRelease(
+            Effect.tryPromise({
+              try: () =>
+                chromium.launch({
+                  headless: headless,
+                  args: headless ? HEADLESS_CHROMIUM_ARGS : [],
+                }),
+              catch: (cause) => new BrowserLaunchError({ cause }),
+            }),
+            (browser) =>
+              Effect.tryPromise(() => browser.close()).pipe(
+                Effect.ignore({
+                  message: "Failed to close browser process",
+                  log: "Warn",
+                }),
+              ),
+          );
 
-      const allCookies: Cookie[] = results.flat();
-      return Arr.dedupeWith(
-        allCookies,
-        (cookieA, cookieB) =>
-          cookieA.name === cookieB.name &&
-          cookieA.domain === cookieB.domain &&
-          cookieA.path === cookieB.path,
-      );
-    });
+          const contextOptions: Parameters<typeof browser.newContext>[0] =
+            browserProfile._tag === "Some" && browserProfile.value._tag === "ChromiumBrowser"
+              ? { locale: browserProfile.value.locale }
+              : {};
+
+          const context = yield* Effect.tryPromise({
+            try: () => browser.newContext(contextOptions),
+            catch: (cause) => new BrowserLaunchError({ cause }),
+          });
+          yield* Effect.tryPromise({
+            try: () => context.addInitScript(RUNTIME_SCRIPT),
+            catch: (cause) => new BrowserLaunchError({ cause }),
+          });
+
+          /** cookies */
+          if (Option.isSome(browserProfile)) {
+            const extractedCookies = yield* cookies.extract(browserProfile.value);
+            yield* Effect.tryPromise({
+              try: () =>
+                context.addCookies(extractedCookies.map((cookie) => cookie.playwrightFormat)),
+              catch: (cause) => new BrowserLaunchError({ cause }),
+            });
+          }
+
+          yield* Effect.tryPromise({
+            try: () => context.addInitScript(RUNTIME_SCRIPT),
+            catch: (cause) => new BrowserLaunchError({ cause }),
+          });
+
+          const page = yield* Effect.tryPromise({
+            try: () => context.newPage(),
+            catch: (cause) => new BrowserLaunchError({ cause }),
+          });
+
+          /*
+          yield* Effect.tryPromise({
+            try: () => page.goto(url, { waitUntil: options.waitUntil ?? "load" }),
+            catch: (cause) =>
+              new NavigationError({
+                url,
+                cause: cause instanceof Error ? cause.message : String(cause),
+              }),
+          });
+          */
+
+          session = { browser, context, page };
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              session = undefined;
+            }),
+          );
+
+          return yield* effect.pipe(Effect.provideService(PlaywrightSession, session));
+        });
 
     // The entire browser session as a single scoped effect.
     // Launched via FiberHandle — interrupting the handle triggers the finalizer
     // which collects final rrweb events and closes the browser.
-    const runSession = Effect.fn("Playwright.runSession")(function* (
-      url: string,
-      options: OpenOptions = {},
-    ) {
-      yield* Effect.annotateCurrentSpan({ url });
+    const runSession = Effect.fn("Playwright.runSession")(
+      function* (options: CreateSessionOptions) {
+        const { page } = yield* PlaywrightSession;
 
-      // Launch browser with acquireRelease — guarantees close even if setup fails partway
-      const browser = yield* Effect.acquireRelease(
-        Effect.tryPromise({
-          try: () =>
-            chromium.launch({
-              headless: !options.headed,
-              executablePath: options.executablePath,
-              args: options.headed ? [] : HEADLESS_CHROMIUM_ARGS,
-            }),
-          catch: (cause) => new BrowserLaunchError({ cause }),
-        }),
-        (browser) =>
-          Effect.tryPromise(() => browser.close()).pipe(
+        // Page event stream — console logs and network requests from Playwright callbacks
+        const pageEvents = Stream.callback<Artifact>((queue) =>
+          Effect.gen(function* () {
+            const onConsole = (message: ConsoleMessage) => {
+              Queue.offerUnsafe(
+                queue,
+                new ConsoleLog({
+                  type: message.type(),
+                  text: message.text(),
+                  timestamp: Date.now(),
+                }),
+              );
+            };
+
+            const onRequest = (request: Request) => {
+              Queue.offerUnsafe(
+                queue,
+                new NetworkRequest({
+                  url: request.url(),
+                  method: request.method(),
+                  status: undefined,
+                  resourceType: request.resourceType(),
+                  timestamp: Date.now(),
+                }),
+              );
+            };
+
+            page.on("console", onConsole);
+            page.on("request", onRequest);
+
+            yield* Effect.addFinalizer(() =>
+              Effect.sync(() => {
+                page.off("console", onConsole);
+                page.off("request", onRequest);
+              }),
+            );
+          }),
+        );
+
+        // Start rrweb recording
+        yield* evaluateRuntime(page, "startRecording");
+        yield* Effect.addFinalizer(() =>
+          evaluateRuntime(page, "stopRecording").pipe(
             Effect.ignore({
-              message: "Failed to close browser process",
               log: "Warn",
+              message: `Rrweb recording stopping failed`,
             }),
           ),
-      );
-
-      const preferredProfile =
-        options.cookies === true ? yield* resolveDefaultProfile() : undefined;
-
-      const profileLocale =
-        preferredProfile?._tag === "ChromiumBrowser" ? preferredProfile.locale : undefined;
-
-      const contextOptions: Parameters<typeof browser.newContext>[0] = {};
-      if (profileLocale) {
-        contextOptions.locale = profileLocale;
-      }
-
-      const context = yield* withBrowser((b) => b.newContext(contextOptions), browser);
-      yield* withContext((c) => c.addInitScript(RUNTIME_SCRIPT), context);
-
-      if (options.cookies) {
-        const extractedCookies = yield* extractCookies(preferredProfile);
-        yield* withContext(
-          (c) => c.addCookies(extractedCookies.map((cookie) => cookie.playwrightFormat)),
-          context,
         );
-      }
 
-      const page = yield* withContext((c) => c.newPage(), context);
-
-      yield* Effect.tryPromise({
-        try: () => page.goto(url, { waitUntil: options.waitUntil ?? "load" }),
-        catch: (cause) =>
-          new NavigationError({
-            url,
-            cause: cause instanceof Error ? cause.message : String(cause),
-          }),
-      });
-
-      // Set session — finalizer below clears it
-      session = { browser, context, page };
-
-      yield* Effect.addFinalizer(() =>
-        Effect.gen(function* () {
-          session = undefined;
-
-          if (!page.isClosed()) {
-            yield* collectAllEvents(page).pipe(
-              Effect.tap((events) => {
-                if (!Array.isArray(events) || events.length === 0) return Effect.void;
-                return artifacts.push(...events.map((event) => new RrwebEvent({ event })));
-              }),
-              Effect.ignore({
-                message: "Failed to collect final rrweb events",
-                log: "Warn",
-              }),
-            );
-          }
-        }),
-      );
-
-      // Page event stream — console logs and network requests from Playwright callbacks
-      const pageEvents = Stream.callback<Artifact>((queue) =>
-        Effect.sync(() => {
-          page.on("console", (message) => {
-            Queue.offerUnsafe(
-              queue,
-              new ConsoleLog({
-                type: message.type(),
-                text: message.text(),
-                timestamp: Date.now(),
-              }),
-            );
-          });
-
-          page.on("request", (request) => {
-            Queue.offerUnsafe(
-              queue,
-              new NetworkRequest({
-                url: request.url(),
-                method: request.method(),
-                status: undefined,
-                resourceType: request.resourceType(),
-                timestamp: Date.now(),
-              }),
-            );
-          });
-        }),
-      );
-
-      // Start rrweb recording
-      yield* evaluateRuntime(page, "startRecording").pipe(
-        Effect.catchCause((cause) => Effect.logDebug("rrweb recording failed to start", { cause })),
-      );
-
-      // rrweb polling stream — drains buffered events from the page runtime
-      const rrwebEvents = Stream.repeatEffect(
-        Effect.gen(function* () {
-          if (page.isClosed()) return [] as Artifact[];
+        // rrweb polling stream — drains buffered events from the page runtime
+        const pollOnce = Effect.gen(function* () {
           const events = yield* evaluateRuntime(page, "getEvents");
-          if (!Array.isArray(events) || events.length === 0) return [] as Artifact[];
-          return events.map((event) => new RrwebEvent({ event })) as Artifact[];
-        }).pipe(Effect.catchCause(() => Effect.succeed([] as Artifact[]))),
-        Schedule.spaced(EVENT_COLLECT_INTERVAL_MS),
-      ).pipe(Stream.flatMap((batch) => Stream.fromIterable(batch)));
+          return events.map((event) => new RrwebEvent({ event }));
+        });
 
-      // Merge both streams and push all artifacts until interrupted
-      yield* Stream.merge(pageEvents, rrwebEvents).pipe(
-        Stream.tap((artifact) => artifacts.push(artifact)),
-        Stream.runDrain,
-      );
-    }, Effect.scoped);
+        const rrwebEvents = Stream.fromEffectSchedule(
+          pollOnce,
+          Schedule.spaced(EVENT_COLLECT_INTERVAL_MS),
+        ).pipe(Stream.flatMap((batch) => Stream.fromIterable(batch)));
 
-    const open = Effect.fn("Playwright.open")(function* (url: string, options: OpenOptions = {}) {
+        // Merge both streams and push all artifacts until interrupted
+        yield* Stream.merge(pageEvents, rrwebEvents).pipe(
+          Stream.tap((artifact) => artifacts.push(artifact)),
+          Stream.runDrain,
+        );
+      },
+      (effect, options) => withCurrentSession(options)(effect),
+      Effect.scoped,
+    );
+
+    const open = Effect.fn("Playwright.open")(function* (options: CreateSessionOptions) {
       if (session) return yield* new BrowserAlreadyOpenError();
-      yield* runSession(url, options).pipe(FiberHandle.run(handle));
-      // FiberHandle.run forks — session is set synchronously in runSession
-      // before it yields to the poll loop, so it's available immediately
+      yield* runSession(options).pipe(FiberHandle.run(handle));
     });
 
     const close = Effect.fn("Playwright.close")(function* () {
@@ -470,7 +465,7 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
 
       yield* injectOverlayLabels(currentPage, labelPositions);
       return yield* Effect.ensuring(
-        withPage((p) => p.screenshot({ fullPage: options.fullPage }), currentPage).pipe(
+        withSession(({ page }) => page.screenshot({ fullPage: options.fullPage })).pipe(
           Effect.map((screenshotBuffer) => ({
             screenshot: screenshotBuffer,
             annotations,
@@ -487,19 +482,17 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
       urlBefore: string,
     ) {
       const currentPage = yield* assertPageExists();
-      yield* withPage(
-        (p) =>
-          p.waitForURL((url) => url.toString() !== urlBefore, {
-            timeout: NAVIGATION_DETECT_DELAY_MS,
-            waitUntil: "commit",
-          }),
-        currentPage,
+      yield* withSession(({ page }) =>
+        page.waitForURL((url) => url.toString() !== urlBefore, {
+          timeout: NAVIGATION_DETECT_DELAY_MS,
+          waitUntil: "commit",
+        }),
       ).pipe(Effect.catchTag("BrowserLaunchError", () => Effect.void));
       if (currentPage.url() !== urlBefore) {
         yield* Effect.tryPromise(() => currentPage.waitForLoadState("domcontentloaded")).pipe(
           Effect.catchTag("UnknownError", () => Effect.void),
         );
-        yield* withPage((p) => p.waitForTimeout(POST_NAVIGATION_SETTLE_MS), currentPage);
+        yield* withSession(({ page }) => page.waitForTimeout(POST_NAVIGATION_SETTLE_MS));
       }
     });
 
