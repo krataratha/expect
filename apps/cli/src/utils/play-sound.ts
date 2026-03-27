@@ -26,6 +26,3 @@ export const notify = (options: NotifyOptions) =>
       resolve(),
     );
   });
-
-export const playSoundAndNotify = (options: NotifyOptions) =>
-  Promise.all([playSound(), notify(options)]).then(() => undefined);
