@@ -545,7 +545,7 @@ export type PageVariant =
   | "kanban"
   | "analytics";
 
-export const PAGE_VARIANTS: PageVariant[] = [
+const PAGE_VARIANTS: PageVariant[] = [
   "signup",
   "login",
   "dashboard",

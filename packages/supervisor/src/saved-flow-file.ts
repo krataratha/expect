@@ -1,7 +1,7 @@
 import { Predicate } from "effect";
 import type { SavedFlowFileData } from "./types";
 
-export const formatSavedFlowFrontmatter = (data: SavedFlowFileData): string => {
+const formatSavedFlowFrontmatter = (data: SavedFlowFileData): string => {
   const lines: string[] = [
     `format_version: ${data.formatVersion}`,
     `title: ${JSON.stringify(data.title)}`,
@@ -22,7 +22,25 @@ export const formatSavedFlowFrontmatter = (data: SavedFlowFileData): string => {
 };
 
 export const formatSavedFlowFile = (data: SavedFlowFileData): string =>
-  `---\n${formatSavedFlowFrontmatter(data)}\n---\n`;
+  `---\n${(() => {
+    const lines: string[] = [
+      `format_version: ${data.formatVersion}`,
+      `title: ${JSON.stringify(data.title)}`,
+      `description: ${JSON.stringify(data.description)}`,
+      `slug: ${JSON.stringify(data.slug)}`,
+      `saved_target_scope: ${JSON.stringify(data.savedTargetScope)}`,
+      `saved_target_display_name: ${JSON.stringify(data.savedTargetDisplayName)}`,
+    ];
+
+    if (data.selectedCommit !== undefined) {
+      lines.push(`selected_commit: ${JSON.stringify(data.selectedCommit)}`);
+    }
+
+    lines.push(`flow: ${JSON.stringify(data.flow)}`);
+    lines.push(`environment: ${JSON.stringify(data.environment)}`);
+
+    return lines.join("\n");
+  })()}\n---\n`;
 
 const parseStringValue = (value: string): string => {
   if (value.startsWith('"') && value.endsWith('"')) {

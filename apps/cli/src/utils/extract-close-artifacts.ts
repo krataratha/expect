@@ -5,7 +5,7 @@ const REPLAY_SESSION_PREFIX = "rrweb replay:";
 const REPLAY_REPORT_PREFIX = "rrweb report:";
 const PLAYWRIGHT_VIDEO_PREFIX = "Playwright video:";
 
-export interface CloseArtifacts {
+interface CloseArtifacts {
   readonly localReplayUrl: string | undefined;
   readonly videoUrl: string | undefined;
   readonly replayPath: string | undefined;
