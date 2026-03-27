@@ -138,6 +138,8 @@ const runHeadlessForTarget = async (target: Target, opts: CommanderOpts) => {
     agent: opts.agent ?? "claude",
     verbose: opts.verbose ?? false,
     headed: opts.headed ?? false,
+    ci: false,
+    timeoutMs: Option.none(),
   });
 };
 
