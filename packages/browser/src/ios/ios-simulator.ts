@@ -5,7 +5,7 @@ import { SimulatorNotFoundError, SimulatorBootError, XcodeNotInstalledError } fr
 
 const execFileAsync = promisify(execFile);
 
-interface IosDevice {
+export interface IosDevice {
   readonly name: string;
   readonly udid: string;
   readonly state: string;
