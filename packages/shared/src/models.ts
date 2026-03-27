@@ -1,4 +1,4 @@
-import { DateTime, Match, Option, Predicate, Schema } from "effect";
+import { DateTime, Effect, Match, Option, Predicate, Schema } from "effect";
 
 export interface SavedFlowStep {
   id: string;
@@ -271,6 +271,27 @@ export type StepId = typeof StepId.Type;
 
 export const PlanId = Schema.String.pipe(Schema.brand("PlanId"));
 export type PlanId = typeof PlanId.Type;
+
+export class ConsoleLog extends Schema.TaggedClass<ConsoleLog>()("ConsoleLog", {
+  type: Schema.String,
+  text: Schema.String,
+  timestamp: Schema.Number,
+}) {}
+
+export class NetworkRequest extends Schema.TaggedClass<NetworkRequest>()("NetworkRequest", {
+  url: Schema.String,
+  method: Schema.String,
+  status: Schema.UndefinedOr(Schema.Number),
+  resourceType: Schema.String,
+  timestamp: Schema.Number,
+}) {}
+
+export class RrwebEvent extends Schema.TaggedClass<RrwebEvent>()("RrwebEvent", {
+  event: Schema.Unknown,
+}) {}
+
+export const Artifact = Schema.Union([ConsoleLog, NetworkRequest, RrwebEvent]);
+export type Artifact = typeof Artifact.Type;
 
 export const ChangesFor = Schema.TaggedUnion({
   WorkingTree: {},

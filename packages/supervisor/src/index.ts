@@ -37,3 +37,5 @@ export {
   type FileCategory,
 } from "./utils/categorize-changed-files";
 export { TestCoverage } from "./test-coverage";
+export { LiveViewer } from "./live-viewer";
+export { LiveViewerRpcsLive } from "./rpc/live-viewer.rpc.layer";

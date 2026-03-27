@@ -1,8 +1,9 @@
 import { Layer, References } from "effect";
 import { DevTools } from "effect/unstable/devtools";
-import { Executor, FlowStorage, Git, Reporter, Updates } from "@expect/supervisor";
+import { Executor, FlowStorage, Git, LiveViewer, Reporter, Updates } from "@expect/supervisor";
 import { Agent, AgentBackend } from "@expect/agent";
 import { Analytics, DebugFileLoggerLayer, Tracing } from "@expect/shared/observability";
+import { layerLiveViewerRpcServer, layerLiveViewerStaticServer } from "./live-viewer-server";
 
 export const layerCli = ({ verbose, agent }: { verbose: boolean; agent: AgentBackend }) => {
   const gitLayer = Git.withRepoRoot(process.cwd());
@@ -15,6 +16,8 @@ export const layerCli = ({ verbose, agent }: { verbose: boolean; agent: AgentBac
     DevTools.layer(),
     gitLayer,
     Analytics.layerPostHog,
+    layerLiveViewerRpcServer,
+    layerLiveViewerStaticServer,
   ).pipe(
     Layer.provide(Agent.layerFor(agent ?? "claude")),
     Layer.provide(DebugFileLoggerLayer),
