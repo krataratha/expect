@@ -11,7 +11,6 @@ export {
   ExecutedTestPlan,
   type ExecutionEvent,
   FileStat,
-  formatFileStats,
   GitState,
   TestContext,
   testContextDescription,

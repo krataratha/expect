@@ -11,7 +11,6 @@ export {
   type ExecutionEvent,
   FileStat,
   FindRepoRootError,
-  formatFileStats,
   Git,
   GitError,
   GitRepoRoot,

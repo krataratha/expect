@@ -1,11 +1,5 @@
 import { exec } from "node:child_process";
 import { platform } from "node:os";
-import notifier from "node-notifier";
-
-interface NotifyOptions {
-  title: string;
-  message: string;
-}
 
 const playSoundCommand = () => {
   const os = platform();
@@ -18,11 +12,4 @@ const playSoundCommand = () => {
 export const playSound = () =>
   new Promise<void>((resolve) => {
     exec(playSoundCommand(), () => resolve());
-  });
-
-export const notify = (options: NotifyOptions) =>
-  new Promise<void>((resolve) => {
-    notifier.notify({ title: options.title, message: options.message, sound: false }, () =>
-      resolve(),
-    );
   });
