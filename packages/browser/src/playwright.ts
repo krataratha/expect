@@ -39,6 +39,7 @@ import {
   BrowserLaunchError,
   BrowserNotOpenError,
   NavigationError,
+  PlaywrightExecutionError,
   SnapshotTimeoutError,
 } from "./errors";
 import { type Artifact, ConsoleLog, NetworkRequest, RrwebEvent } from "@expect/shared/models";
@@ -61,6 +62,8 @@ import type {
   SnapshotOptions,
   SnapshotResult,
 } from "./types";
+
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 
 export interface OpenOptions {
   readonly headed?: boolean;
@@ -146,7 +149,7 @@ export interface CreateSessionOptions {
   browserProfile: Option.Option<BrowserProfile>;
   initialNavigation: Option.Option<{
     url: string;
-    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit" | undefined;
   }>;
 }
 
@@ -160,7 +163,15 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
 
     const handle = yield* FiberHandle.make();
 
-    const withCurrentSession =
+    const withCurrentSession = <A, E, R extends PlaywrightSession>(
+      effect: Effect.Effect<A, E, R>,
+    ) =>
+      Effect.gen(function* () {
+        if (session === undefined) return yield* new BrowserNotOpenError();
+        return yield* effect.pipe(Effect.provideService(PlaywrightSession, session));
+      });
+
+    const withCreateSession =
       ({ headless, browserProfile, initialNavigation }: CreateSessionOptions) =>
       <A, E, R extends PlaywrightSession | Scope.Scope>(
         effect: Effect.Effect<A, E, R>,
@@ -326,9 +337,8 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
           Stream.tap((artifact) => artifacts.push(artifact)),
           Stream.runDrain,
         );
-        yield* Effect.logFatal("AFTER STREAM SUS");
       },
-      (effect, options) => withCurrentSession(options)(effect),
+      (effect, options) => withCreateSession(options)(effect),
       Effect.tapCause((cause) => Effect.logError(`Running session failed`, cause)),
       Effect.annotateLogs({ fiber: "runSession" }),
       Effect.scoped,
@@ -346,14 +356,8 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
     });
 
     const close = Effect.fn("Playwright.close")(function* () {
-      if (!session) return yield* new BrowserNotOpenError();
       yield* FiberHandle.clear(handle);
-    });
-
-    const assertPageExists = Effect.fn("Playwright.assertPageExists")(function* () {
-      if (!session) return yield* new BrowserNotOpenError();
-      return session.page;
-    });
+    }, Effect.scoped);
 
     const navigate = Effect.fn("Playwright.navigate")(function* (
       url: string,
@@ -361,25 +365,44 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
         waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit";
       } = {},
     ) {
-      const currentPage = yield* assertPageExists();
+      const { page } = yield* PlaywrightSession;
       yield* Effect.tryPromise({
-        try: () => currentPage.goto(url, { waitUntil: options.waitUntil ?? "load" }),
+        try: () => page.goto(url, { waitUntil: options.waitUntil ?? "load" }),
         catch: (cause) =>
           new NavigationError({
             url,
             cause: cause instanceof Error ? cause.message : String(cause),
           }),
       });
-    });
+    }, withCurrentSession);
 
-    const snapshot = Effect.fn("Playwright.snapshot")(function* (options: SnapshotOptions = {}) {
-      const currentPage = yield* assertPageExists();
+    /*
+
+      export const scoped = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, Exclude<R, Scope.Scope>> =>
+        withFiber((fiber) => {
+          const prev = fiber.services
+          const scope = scopeMakeUnsafe()
+          fiber.setServices(ServiceMap.add(fiber.services, scopeTag, scope))
+          return onExitPrimitive(self, (exit) => {
+            fiber.setServices(prev)
+            return scopeCloseUnsafe(scope, exit)
+          })
+        }) as any
+
+
+        export const scoped: <A, E, R>(
+          self: Effect<A, E, R>
+        ) => Effect<A, E, Exclude<R, Scope>> = internal.scoped
+      */
+
+    const snapshot = Effect.fn("Playwright.snapshot")(function* (options: SnapshotOptions) {
+      const { page } = yield* PlaywrightSession;
       const timeout = options.timeout ?? SNAPSHOT_TIMEOUT_MS;
       const selector = options.selector ?? "body";
       yield* Effect.annotateCurrentSpan({ selector });
 
       const rawTree = yield* Effect.tryPromise({
-        try: () => currentPage.locator(selector).ariaSnapshot({ timeout }),
+        try: () => page.locator(selector).ariaSnapshot({ timeout }),
         catch: (cause) =>
           new SnapshotTimeoutError({
             selector,
@@ -415,7 +438,7 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
 
       if (options.cursor) {
         refCount = yield* appendCursorInteractiveElements(
-          currentPage,
+          page,
           filteredLines,
           refs,
           refCount,
@@ -435,30 +458,29 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
         tree,
         refs,
         stats,
-        locator: createLocator(currentPage, refs),
+        locator: createLocator(page, refs),
       } satisfies SnapshotResult;
-    });
+    }, withCurrentSession);
 
     const act = Effect.fn("Playwright.act")(function* (
       ref: string,
       action: (locator: Locator) => Promise<void>,
       options?: SnapshotOptions,
     ) {
-      yield* assertPageExists();
       yield* Effect.annotateCurrentSpan({ ref });
-      const before = yield* snapshot(options);
+      const before = yield* snapshot(options ?? {});
       const locator = yield* before.locator(ref);
       yield* Effect.tryPromise({
         try: () => action(locator),
         catch: (error) => toActionError(error, ref),
       });
-      return yield* snapshot(options);
-    });
+      return yield* snapshot(options ?? {});
+    }, withCurrentSession);
 
     const annotatedScreenshot = Effect.fn("Playwright.annotatedScreenshot")(function* (
-      options: AnnotatedScreenshotOptions = {},
+      options: AnnotatedScreenshotOptions,
     ) {
-      const currentPage = yield* assertPageExists();
+      const { page } = yield* PlaywrightSession;
       const snapshotResult = yield* snapshot(options);
       const annotations: Annotation[] = [];
       const labelPositions: Array<{ label: number; x: number; y: number }> = [];
@@ -482,7 +504,7 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
         labelPositions.push({ label: labelCounter, x: box.x, y: box.y });
       }
 
-      yield* injectOverlayLabels(currentPage, labelPositions);
+      yield* injectOverlayLabels(page, labelPositions);
       return yield* Effect.ensuring(
         withSession(({ page }) => page.screenshot({ fullPage: options.fullPage })).pipe(
           Effect.map((screenshotBuffer) => ({
@@ -491,29 +513,50 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
           })),
         ),
         // HACK: overlay removal is best-effort — evaluateRuntime uses Effect.promise which defects on failure
-        evaluateRuntime(currentPage, "removeOverlay", OVERLAY_CONTAINER_ID).pipe(
+        evaluateRuntime(page, "removeOverlay", OVERLAY_CONTAINER_ID).pipe(
           Effect.catchCause(() => Effect.void),
         ),
       );
-    });
+    }, withCurrentSession);
 
     const waitForNavigationSettle = Effect.fn("Playwright.waitForNavigationSettle")(function* (
       urlBefore: string,
     ) {
-      const currentPage = yield* assertPageExists();
+      const { page } = yield* PlaywrightSession;
       yield* withSession(({ page }) =>
         page.waitForURL((url) => url.toString() !== urlBefore, {
           timeout: NAVIGATION_DETECT_DELAY_MS,
           waitUntil: "commit",
         }),
       ).pipe(Effect.catchTag("BrowserLaunchError", () => Effect.void));
-      if (currentPage.url() !== urlBefore) {
-        yield* Effect.tryPromise(() => currentPage.waitForLoadState("domcontentloaded")).pipe(
+      if (page.url() !== urlBefore) {
+        yield* Effect.tryPromise(() => page.waitForLoadState("domcontentloaded")).pipe(
           Effect.catchTag("UnknownError", () => Effect.void),
         );
         yield* withSession(({ page }) => page.waitForTimeout(POST_NAVIGATION_SETTLE_MS));
       }
-    });
+    }, withCurrentSession);
+
+    const execute = Effect.fn("Playwright.execute")(function* (
+      code: string,
+      snapshot: SnapshotResult,
+    ) {
+      const { page } = yield* PlaywrightSession;
+      const ref = (refId: string) => Effect.runSync(snapshot.locator(refId));
+      return yield* Effect.tryPromise({
+        try: async () => {
+          const userFunction = new AsyncFunction("page", "context", "browser", "ref", code);
+          const result = await userFunction(page, page.context(), page.context().browser(), ref);
+          if (result === undefined) return "OK";
+          return result;
+        },
+        catch: (cause) => new PlaywrightExecutionError({ cause }),
+      });
+    }, withCurrentSession);
+
+    const getPage = PlaywrightSession.use(({ page }) => Effect.succeed(page)).pipe(
+      withCurrentSession,
+    );
 
     return {
       open,
@@ -523,8 +566,9 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
       act,
       annotatedScreenshot,
       waitForNavigationSettle,
-      assertPageExists,
       hasSession: () => Boolean(session),
+      withCurrentSession,
+      execute,
     } as const;
   }),
 }) {

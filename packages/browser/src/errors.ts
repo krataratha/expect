@@ -109,7 +109,7 @@ export class PlaywrightExecutionError extends Schema.ErrorClass<PlaywrightExecut
   "PlaywrightExecutionError",
 )({
   _tag: Schema.tag("PlaywrightExecutionError"),
-  cause: Schema.String,
+  cause: Schema.Unknown,
 }) {
   message = `Playwright code execution failed: ${this.cause}`;
 }

@@ -1,10 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod/v4";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
 import type { ConsoleLog, NetworkRequest } from "@expect/shared/models";
 
-import { Playwright } from "./playwright";
+import { Playwright, PlaywrightSession } from "./playwright";
 import { Artifacts } from "./artifacts";
 import { McpServerStartError, NoSnapshotError, PlaywrightExecutionError } from "./errors";
 import { evaluateRuntime } from "./utils/evaluate-runtime";
@@ -66,16 +66,23 @@ export const layerMcpServer = Layer.effectDiscard(
             .describe("Wait strategy"),
         },
       },
-      ({ url, headed, cookies, waitUntil }) =>
+      ({ url, headed, cookies, waitUntil }, { signal }) =>
         Effect.gen(function* () {
           const pw = yield* Playwright;
           if (pw.hasSession()) {
             yield* pw.navigate(url, { waitUntil });
             return textResult(`Navigated to ${url}`);
           }
-          yield* pw.open(url, { headed, cookies, waitUntil });
+          yield* pw.open({
+            headless: !headed,
+            browserProfile: Option.none(),
+            initialNavigation: Option.some({
+              url,
+              waitUntil,
+            }),
+          });
           return textResult(`Opened ${url}`);
-        }).pipe(run),
+        }).pipe((effect) => run(effect, { signal })),
     );
 
     // screenshot
@@ -94,13 +101,13 @@ export const layerMcpServer = Layer.effectDiscard(
           fullPage: z.boolean().optional().describe("Capture the full scrollable page"),
         },
       },
-      ({ mode, fullPage }) =>
+      ({ mode, fullPage }, { signal }) =>
         Effect.gen(function* () {
           const pw = yield* Playwright;
           const resolvedMode = mode ?? "screenshot";
 
           if (resolvedMode === "snapshot") {
-            const result = yield* pw.snapshot();
+            const result = yield* pw.snapshot({});
             lastSnapshot = result;
             return jsonResult({
               tree: result.tree,
@@ -131,10 +138,11 @@ export const layerMcpServer = Layer.effectDiscard(
             };
           }
 
-          const page = yield* pw.assertPageExists();
-          const buffer = yield* Effect.tryPromise(() => page.screenshot({ fullPage }));
+          const buffer = yield* PlaywrightSession.use(({ page }) =>
+            Effect.tryPromise(() => page.screenshot({ fullPage })),
+          ).pipe(pw.withCurrentSession);
           return imageResult(buffer.toString("base64"));
-        }).pipe(run),
+        }).pipe((effect) => run(effect, { signal })),
     );
 
     // playwright — raw code execution
@@ -148,36 +156,13 @@ export const layerMcpServer = Layer.effectDiscard(
           code: z.string().describe("Playwright code to execute"),
         },
       },
-      ({ code }) =>
+      ({ code }, { signal }) =>
         Effect.gen(function* () {
           const pw = yield* Playwright;
-          const page = yield* pw.assertPageExists();
-
           if (!lastSnapshot) return yield* new NoSnapshotError();
-
-          const resolvedSnapshot = lastSnapshot;
-          // HACK: ref() is a sync bridge for user-provided Playwright code — must be a plain function
-          // because it's called from inside an AsyncFunction, not from Effect context
-          const ref = (refId: string) => Effect.runSync(resolvedSnapshot.locator(refId));
-
-          return yield* Effect.tryPromise({
-            try: async () => {
-              const userFunction = new AsyncFunction("page", "context", "browser", "ref", code);
-              const result = await userFunction(
-                page,
-                page.context(),
-                page.context().browser(),
-                ref,
-              );
-              if (result === undefined) return textResult("OK");
-              return jsonResult(result);
-            },
-            catch: (error) =>
-              new PlaywrightExecutionError({
-                cause: error instanceof Error ? error.message : String(error),
-              }),
-          });
-        }).pipe(run),
+          const result = yield* pw.execute(code, lastSnapshot);
+          return jsonResult(result);
+        }).pipe((effect) => run(effect, { signal })),
     );
 
     // console_logs
@@ -195,7 +180,7 @@ export const layerMcpServer = Layer.effectDiscard(
             .describe("Filter by console message type (e.g. 'error', 'warning', 'log')"),
         },
       },
-      ({ type }) =>
+      ({ type }, { signal }) =>
         Effect.gen(function* () {
           const art = yield* Artifacts;
           const logs = art.all().filter((a): a is ConsoleLog => a._tag === "ConsoleLog");
@@ -203,7 +188,7 @@ export const layerMcpServer = Layer.effectDiscard(
           return filtered.length === 0
             ? textResult("No console messages captured.")
             : jsonResult(filtered);
-        }).pipe(run),
+        }).pipe((effect) => run(effect, { signal })),
     );
 
     // network_requests
@@ -223,7 +208,7 @@ export const layerMcpServer = Layer.effectDiscard(
             .describe("Filter by resource type (e.g. 'xhr', 'fetch', 'document', 'script')"),
         },
       },
-      ({ method, url, resourceType }) =>
+      ({ method, url, resourceType }, { signal }) =>
         Effect.gen(function* () {
           const art = yield* Artifacts;
           const requests = art
@@ -243,7 +228,7 @@ export const layerMcpServer = Layer.effectDiscard(
           return filtered.length === 0
             ? textResult("No network requests captured.")
             : jsonResult(filtered);
-        }).pipe(run),
+        }).pipe((effect) => run(effect, { signal })),
     );
 
     // performance_metrics
@@ -256,15 +241,15 @@ export const layerMcpServer = Layer.effectDiscard(
         annotations: { readOnlyHint: true },
         inputSchema: {},
       },
-      () =>
+      (_, { signal }) =>
         Effect.gen(function* () {
           const pw = yield* Playwright;
-          const page = yield* pw.assertPageExists();
+          const page = yield* pw.getPage;
           const metrics = yield* evaluateRuntime(page, "getPerformanceMetrics");
           const hasMetrics = metrics.fcp || metrics.lcp || metrics.inp;
           if (!hasMetrics) return textResult("No performance metrics available yet.");
           return jsonResult(metrics);
-        }).pipe(run),
+        }).pipe((effect) => run(effect, { signal })),
     );
 
     // close
@@ -276,13 +261,13 @@ export const layerMcpServer = Layer.effectDiscard(
         annotations: { destructiveHint: true },
         inputSchema: {},
       },
-      () =>
+      (_, { signal }) =>
         Effect.gen(function* () {
           const pw = yield* Playwright;
           yield* pw.close();
           lastSnapshot = undefined;
           return textResult("Browser closed.");
-        }).pipe(run),
+        }).pipe((effect) => run(effect, { signal })),
     );
 
     // Start stdio transport — acquireRelease ensures cleanup
