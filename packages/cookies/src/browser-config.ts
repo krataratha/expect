@@ -6,7 +6,7 @@ interface PlatformPaths {
   readonly win32: string;
 }
 
-interface ChromiumConfig {
+export interface ChromiumConfig {
   readonly kind: "chromium";
   readonly key: ChromiumBrowserKey;
   readonly displayName: string;
