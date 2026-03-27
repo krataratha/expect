@@ -53,7 +53,7 @@ interface NetworkEntry {
   readonly timestamp: number;
 }
 
-export interface BrowserSessionData {
+interface BrowserSessionData {
   readonly browser: PlaywrightBrowser;
   readonly context: BrowserContext;
   readonly page: Page;
@@ -65,18 +65,18 @@ export interface BrowserSessionData {
   lastSnapshot: SnapshotResult | undefined;
 }
 
-export interface OpenOptions {
+interface OpenOptions {
   headed?: boolean;
   cookies?: boolean;
   waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit";
   cdpUrl?: string;
 }
 
-export interface OpenResult {
+interface OpenResult {
   readonly injectedCookieCount: number;
 }
 
-export interface CloseResult {
+interface CloseResult {
   readonly replaySessionPath: string | undefined;
   readonly reportPath: string | undefined;
   readonly videoPath: string | undefined;

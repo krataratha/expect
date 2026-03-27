@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getAudioContext, decodeAudioData } from "@/lib/sound-engine";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import type { SoundAsset, UseSoundOptions, UseSoundReturn } from "@/lib/sound-types";
@@ -36,7 +36,7 @@ export function useSound(sound: SoundAsset, options: UseSoundOptions = {}): UseS
     };
   }, [sound.dataUri]);
 
-  const stop = useCallback(() => {
+  const stop = () => {
     if (sourceRef.current) {
       try {
         sourceRef.current.stop();
@@ -47,73 +47,70 @@ export function useSound(sound: SoundAsset, options: UseSoundOptions = {}): UseS
     }
     setIsPlaying(false);
     onStop?.();
-  }, [onStop]);
+  };
 
-  const play = useCallback(
-    (overrides?: { volume?: number; playbackRate?: number }) => {
+  const play = (overrides?: { volume?: number; playbackRate?: number }) => {
+    if (!soundEnabled) return;
+
+    const ctx = getAudioContext();
+    void ctx.resume();
+
+    const startPlaybackWithBuffer = (buffer: AudioBuffer) => {
       if (!soundEnabled) return;
 
-      const ctx = getAudioContext();
-      void ctx.resume();
-
-      const startPlaybackWithBuffer = (buffer: AudioBuffer) => {
-        if (!soundEnabled) return;
-
-        if (interrupt && sourceRef.current) {
-          stop();
-        }
-
-        const source = ctx.createBufferSource();
-        const gain = ctx.createGain();
-
-        source.buffer = buffer;
-        source.playbackRate.value = overrides?.playbackRate ?? playbackRate;
-        gain.gain.value = overrides?.volume ?? volume;
-
-        source.connect(gain);
-        gain.connect(ctx.destination);
-
-        source.onended = () => {
-          setIsPlaying(false);
-          onEnd?.();
-        };
-
-        source.start(0);
-        sourceRef.current = source;
-        gainRef.current = gain;
-        setIsPlaying(true);
-        onPlay?.();
-      };
-
-      const run = (buffer: AudioBuffer) => {
-        if (ctx.state === "suspended") {
-          void ctx.resume().then(() => {
-            startPlaybackWithBuffer(buffer);
-          });
-        } else {
-          startPlaybackWithBuffer(buffer);
-        }
-      };
-
-      if (bufferRef.current) {
-        run(bufferRef.current);
-        return;
+      if (interrupt && sourceRef.current) {
+        stop();
       }
 
-      void decodeAudioData(sound.dataUri).then((buffer) => {
-        bufferRef.current = buffer;
-        setDuration(buffer.duration);
-        if (!soundEnabled) return;
-        run(buffer);
-      });
-    },
-    [sound, soundEnabled, playbackRate, volume, interrupt, stop, onPlay, onEnd],
-  );
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
 
-  const pause = useCallback(() => {
+      source.buffer = buffer;
+      source.playbackRate.value = overrides?.playbackRate ?? playbackRate;
+      gain.gain.value = overrides?.volume ?? volume;
+
+      source.connect(gain);
+      gain.connect(ctx.destination);
+
+      source.onended = () => {
+        setIsPlaying(false);
+        onEnd?.();
+      };
+
+      source.start(0);
+      sourceRef.current = source;
+      gainRef.current = gain;
+      setIsPlaying(true);
+      onPlay?.();
+    };
+
+    const run = (buffer: AudioBuffer) => {
+      if (ctx.state === "suspended") {
+        void ctx.resume().then(() => {
+          startPlaybackWithBuffer(buffer);
+        });
+      } else {
+        startPlaybackWithBuffer(buffer);
+      }
+    };
+
+    if (bufferRef.current) {
+      run(bufferRef.current);
+      return;
+    }
+
+    void decodeAudioData(sound.dataUri).then((buffer) => {
+      bufferRef.current = buffer;
+      setDuration(buffer.duration);
+      if (!soundEnabled) return;
+      run(buffer);
+    });
+  };
+
+  const pause = () => {
     stop();
     onPause?.();
-  }, [stop, onPause]);
+  };
 
   useEffect(() => {
     if (gainRef.current) {

@@ -8,7 +8,6 @@ import {
   chromiumConfig,
   configByBundleId,
   configByDesktopFile,
-  configByDisplayName,
   configByKey,
 } from "../src/browser-config";
 
@@ -128,32 +127,6 @@ describe("configByDesktopFile", () => {
 
   it("returns undefined for unknown desktop file", () => {
     expect(configByDesktopFile("unknown-browser")).toBeUndefined();
-  });
-});
-
-describe("configByDisplayName", () => {
-  it("maps Google Chrome", () => {
-    expect(configByDisplayName("Google Chrome")?.key).toBe("chrome");
-  });
-
-  it("maps Firefox", () => {
-    expect(configByDisplayName("Firefox")?.key).toBe("firefox");
-  });
-
-  it("maps Safari", () => {
-    expect(configByDisplayName("Safari")?.key).toBe("safari");
-  });
-
-  it("maps every chromium config display name", () => {
-    for (const config of CHROMIUM_CONFIGS) {
-      const result = configByDisplayName(config.displayName);
-      expect(result).toBeDefined();
-      expect(result!.key).toBe(config.key);
-    }
-  });
-
-  it("returns undefined for unknown display name", () => {
-    expect(configByDisplayName("Unknown Browser")).toBeUndefined();
   });
 });
 

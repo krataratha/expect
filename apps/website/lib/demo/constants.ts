@@ -1,13 +1,6 @@
-export interface DemoStepDefinition {
-  readonly stepId: string;
-  readonly title: string;
-  readonly startOffsetMs: number;
-  readonly endOffsetMs: number;
-}
-
 export const DEMO_TARGET_URL = "https://expect.dev";
 
-export const DEMO_STEP_DEFINITIONS: readonly DemoStepDefinition[] = [
+export const DEMO_STEP_DEFINITIONS = [
   {
     stepId: "demo-step-1",
     title: "Navigate to expect.dev and let the homepage intro animation settle",
