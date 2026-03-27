@@ -1,5 +1,6 @@
 export { Playwright, type OpenOptions } from "./playwright";
 export { Artifacts } from "./artifacts";
+export { layerArtifactsRpc } from "./artifacts-rpc";
 export { layerMcpServer } from "./mcp-server";
 export { diffSnapshots } from "./diff";
 export { collectEvents, collectAllEvents, loadSession } from "./recorder";

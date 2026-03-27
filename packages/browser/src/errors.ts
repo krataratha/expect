@@ -77,7 +77,7 @@ export class ActionUnknownError extends Schema.ErrorClass<ActionUnknownError>("A
 export class NavigationError extends Schema.ErrorClass<NavigationError>("NavigationError")({
   _tag: Schema.tag("NavigationError"),
   url: Schema.String,
-  cause: Schema.String,
+  cause: Schema.Unknown,
 }) {
   message = `Navigation to "${this.url}" failed: ${this.cause}`;
 }

@@ -144,6 +144,10 @@ export interface CreateSessionOptions {
   headless: boolean;
   /** @note(rasmus): optional profile to use */
   browserProfile: Option.Option<BrowserProfile>;
+  initialNavigation: Option.Option<{
+    url: string;
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+  }>;
 }
 
 export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playwright", {
@@ -157,12 +161,12 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
     const handle = yield* FiberHandle.make();
 
     const withCurrentSession =
-      ({ headless, browserProfile }: CreateSessionOptions) =>
+      ({ headless, browserProfile, initialNavigation }: CreateSessionOptions) =>
       <A, E, R extends PlaywrightSession | Scope.Scope>(
         effect: Effect.Effect<A, E, R>,
       ): Effect.Effect<
         A,
-        E | BrowserLaunchError | ExtractionError | PlatformError.PlatformError,
+        E | BrowserLaunchError | ExtractionError | NavigationError | PlatformError.PlatformError,
         Exclude<R, PlaywrightSession> | Scope.Scope
       > =>
         Effect.gen(function* () {
@@ -222,16 +226,19 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
             catch: (cause) => new BrowserLaunchError({ cause }),
           });
 
-          /*
-          yield* Effect.tryPromise({
-            try: () => page.goto(url, { waitUntil: options.waitUntil ?? "load" }),
-            catch: (cause) =>
-              new NavigationError({
-                url,
-                cause: cause instanceof Error ? cause.message : String(cause),
-              }),
-          });
-          */
+          if (Option.isSome(initialNavigation)) {
+            yield* Effect.tryPromise({
+              try: () =>
+                page.goto(initialNavigation.value.url, {
+                  waitUntil: initialNavigation.value.waitUntil ?? "load",
+                }),
+              catch: (cause) =>
+                new NavigationError({
+                  url: initialNavigation.value.url,
+                  cause,
+                }),
+            });
+          }
 
           session = { browser, context, page };
           yield* Effect.addFinalizer(() =>
@@ -300,11 +307,14 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
           ),
         );
 
-        // rrweb polling stream — drains buffered events from the page runtime
+        // rrweb polling stream — drains buffered events from the page runtime.
+        // Survives navigation — evaluate can fail transiently when the execution
+        // context is destroyed mid-navigation, so errors return an empty batch.
         const pollOnce = Effect.gen(function* () {
+          if (page.isClosed()) return [];
           const events = yield* evaluateRuntime(page, "getEvents");
           return events.map((event) => new RrwebEvent({ event }));
-        });
+        }).pipe(Effect.catch(() => Effect.succeed([])));
 
         const rrwebEvents = Stream.fromEffectSchedule(
           pollOnce,
@@ -316,14 +326,23 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
           Stream.tap((artifact) => artifacts.push(artifact)),
           Stream.runDrain,
         );
+        yield* Effect.logFatal("AFTER STREAM SUS");
       },
       (effect, options) => withCurrentSession(options)(effect),
+      Effect.tapCause((cause) => Effect.logError(`Running session failed`, cause)),
+      Effect.annotateLogs({ fiber: "runSession" }),
       Effect.scoped,
     );
 
     const open = Effect.fn("Playwright.open")(function* (options: CreateSessionOptions) {
       if (session) return yield* new BrowserAlreadyOpenError();
       yield* runSession(options).pipe(FiberHandle.run(handle));
+      return yield* Effect.suspend(() =>
+        session ? Effect.succeed(session) : Effect.fail(new BrowserNotOpenError()),
+      ).pipe(
+        Effect.retry({ schedule: Schedule.spaced("100 millis") }),
+        Effect.timeout("5 seconds"),
+      );
     });
 
     const close = Effect.fn("Playwright.close")(function* () {
@@ -510,7 +529,6 @@ export class Playwright extends ServiceMap.Service<Playwright>()("@browser/Playw
   }),
 }) {
   static layer = Layer.effect(this)(this.make).pipe(
-    Layer.provide(Artifacts.layer),
     Layer.provide(Cookies.layer),
     Layer.provide(layerLive),
   );
