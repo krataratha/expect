@@ -8,7 +8,7 @@ export class McpSessionNotOpenError extends Schema.ErrorClass<McpSessionNotOpenE
   message = "No browser open. Call the 'open' tool first.";
 }
 
-export class McpVideoSaveError extends Schema.ErrorClass<McpVideoSaveError>("McpVideoSaveError")({
+class McpVideoSaveError extends Schema.ErrorClass<McpVideoSaveError>("McpVideoSaveError")({
   _tag: Schema.tag("McpVideoSaveError"),
   cause: Schema.String,
 }) {

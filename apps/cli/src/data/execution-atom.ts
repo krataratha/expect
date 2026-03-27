@@ -24,7 +24,7 @@ interface ExecuteInput {
   readonly onReplayUrl?: (url: string) => void;
 }
 
-export interface ExecutionResult {
+interface ExecutionResult {
   readonly executedPlan: ExecutedTestPlan;
   readonly report: TestReport;
   readonly replayUrl?: string;
@@ -166,7 +166,7 @@ export const executeFn = cliAtomRuntime.fn<ExecuteInput>()((input, ctx) =>
   ),
 );
 
-export const executeAtomFn = cliAtomRuntime.fn(
+const executeAtomFn = cliAtomRuntime.fn(
   Effect.fnUntraced(
     function* (input: ExecuteInput, _ctx: Atom.FnContext) {
       const reporter = yield* Reporter;

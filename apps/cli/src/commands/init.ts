@@ -15,7 +15,7 @@ import {
   tryRun,
 } from "./init-utils";
 
-export { detectAvailableAgents };
+;
 
 const GLOBAL_INSTALL_COMMANDS: Record<PackageManager, string> = {
   npm: "npm install -g expect-cli@latest",

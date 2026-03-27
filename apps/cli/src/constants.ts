@@ -21,8 +21,8 @@ export const CLICK_SUPPORT_ENABLED =
 
 export const CONTEXT_PICKER_VISIBLE_COUNT = 8;
 
-export const TEST_FILE_CONTENT_SIZE_LIMIT_BYTES = 256 * 1024;
-export const TEST_FILE_SCAN_LIMIT = 50;
+const TEST_FILE_CONTENT_SIZE_LIMIT_BYTES = 256 * 1024;
+const TEST_FILE_SCAN_LIMIT = 50;
 
 export const AUDIT_LINT_KEYWORDS = ["lint", "check", "format", "typecheck", "type-check"];
 export const AUDIT_SCRIPT_TIMEOUT_MS = 120_000;
