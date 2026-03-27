@@ -33,14 +33,6 @@ const AcpToolKind = Schema.Literals([
   "other",
 ] as const);
 
-const AcpStopReason = Schema.Literals([
-  "end_turn",
-  "max_tokens",
-  "max_turn_requests",
-  "refusal",
-  "cancelled",
-] as const);
-
 const AcpContentBlock = Schema.Union([
   Schema.Struct({ type: Schema.Literal("text"), text: Schema.String }),
   Schema.Struct({
@@ -178,26 +170,6 @@ export const AcpSessionUpdate = Schema.Union([
 ]);
 export type AcpSessionUpdate = typeof AcpSessionUpdate.Type;
 
-export class AcpSessionNotification extends Schema.Class<AcpSessionNotification>(
-  "AcpSessionNotification",
-)({
-  sessionId: Schema.String,
-  update: AcpSessionUpdate,
-}) {}
-
-export const AcpUsage = Schema.Struct({
-  inputTokens: Schema.Number,
-  outputTokens: Schema.Number,
-  cachedReadTokens: Schema.optional(Schema.NullOr(Schema.Number)),
-  cachedWriteTokens: Schema.optional(Schema.NullOr(Schema.Number)),
-  thoughtTokens: Schema.optional(Schema.NullOr(Schema.Number)),
-});
-
-export class AcpPromptResponse extends Schema.Class<AcpPromptResponse>("AcpPromptResponse")({
-  stopReason: AcpStopReason,
-  usage: Schema.optional(Schema.NullOr(AcpUsage)),
-}) {}
-
 export interface ChangedFile {
   path: string;
   status: "A" | "M" | "D" | "R" | "C" | "?";
@@ -212,11 +184,6 @@ export interface CommitSummary {
 export const AgentProvider = Schema.Literals(["claude", "codex", "cursor"] as const);
 export type AgentProvider = typeof AgentProvider.Type;
 
-export const AGENT_PROVIDER_DISPLAY_NAMES: Record<AgentProvider, string> = {
-  claude: "Claude",
-  codex: "Codex",
-  cursor: "Cursor",
-};
 const TOOL_CALL_DISPLAY_TEXT_CHAR_LIMIT = 80;
 
 export class FileStat extends Schema.Class<FileStat>("@ami/FileStat")({
@@ -342,11 +309,6 @@ export class RemoteBranch extends Schema.Class<RemoteBranch>("@supervisor/Remote
     return result;
   }
 }
-
-export class FileDiff extends Schema.Class<FileDiff>("@supervisor/FileDiff")({
-  relativePath: Schema.String,
-  diff: Schema.String,
-}) {}
 
 export const StepStatus = Schema.Literals(["pending", "active", "passed", "failed", "skipped"]);
 export type StepStatus = typeof StepStatus.Type;
